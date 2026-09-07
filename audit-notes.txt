@@ -1,0 +1,54 @@
+W2 Audit Findings — 05-09-2026
+
+1. Telemetry: ENABLE_TELEMETRY controlled via api/constants.py:158, 
+   gated in app.py:18. Set to false in .env. [Restart + browser 
+   Network-tab check still pending — see open items.]
+
+2. Hardcoded keys: none found in source. Two placeholder secrets in 
+   api/.env.example must be replaced before real deployment:
+   - DOGRAH_DEVOPS_SECRET
+   - TURN_SECRET
+
+3. Managed-platform code: extensive — organization_bootstrap.py, 
+   managed_model_services.py, Cloudonix managed SIP provisioning, MPS 
+   correlation IDs, quota_service.py authorization checks. NOT a small 
+   removal — needs senior review before any edits.
+
+4. UI links: ~15+ files hardcode app.dograh.com / docs.dograh.com / 
+   www.dograh.com (billing, files, overview, settings, telephony pages, 
+   tools, sidebar, footer, client.gen.ts base URL). One existing 
+   constant found: ui/src/constants/documentation.ts (DOCS_BASE) - 
+   may already centralize some doc links, needs checking.
+
+5. Footer: ui/src/components/Footer.tsx links to dograh.com privacy 
+   policy and terms of service - needs Laveric's own URLs once ready.
+
+6. LICENSE: confirmed intact, BSD-2-Clause, copyright holder "Zansat 
+   Technologies Private Limited" (2025) - must not be deleted or edited.
+
+Open items before any code changes: telemetry browser-verification 
+(steps 2-5), senior review of managed-platform scope, CI audit script.
+
+
+### CRITICAL FINDING — confirmed live "calling home"
+During a test signup (02:51:14–02:51:22), the API made real successful
+outbound calls to Dograh's own servers:
+- POST https://services.dograh.com/api/v1/service-keys/ -> 200 OK
+- PUT https://services.dograh.com/api/v1/cloudonix/domains/self -> 200 OK
+
+This is triggered from organization_bootstrap.py, which auto-provisions
+"Dograh-managed model services" and "Dograh-managed SIP connectivity" for
+every new organization. This confirms the managed-platform code found
+earlier is not dead/theoretical code — it actively runs and reaches
+Dograh's infrastructure on every signup. This must be disabled/removed
+before further testing that creates real accounts, and needs senior
+review before deciding how (per Section 0 review gates).
+
+
+POSTHOG_KEY usage: found in ui/src/app/api/config/posthog/route.ts (reads 
+POSTHOG_KEY) and ui/src/instrumentation-client.ts (reads 
+NEXT_PUBLIC_POSTHOG_KEY, calls posthog.init() if present). 
+NOT gated behind ENABLE_TELEMETRY — this is a SEPARATE env variable. 
+Setting ENABLE_TELEMETRY=false does not stop PostHog from initializing.
+Fix needed: either unset NEXT_PUBLIC_POSTHOG_KEY in our .env, or make 
+this check also respect ENABLE_TELEMETRY.
