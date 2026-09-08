@@ -6,3 +6,7 @@ you add - those never conflict on rebase).
 | File | What changed | Why | Date |
 |---|---|---|---|
 | (none yet) | | | |
+| api/constants.py | ENABLE_TELEMETRY default changed "true" → "false" | Fail-safe default; telemetry must not be on unless explicitly enabled | [today's date] |
+| ui/src/constants/documentation.ts | DOCS_BASE hardcoded to docs.dograh.com → now reads NEXT_PUBLIC_DOCS_BASE_URL env var, falls back to "#" | Laveric docs site doesn't exist yet; avoid pointing users at Dograh's docs while ours is being written | [date] |
+| ui/src/components/Footer.tsx | Privacy policy link changed from dograh.com to "#" placeholder | Laveric's own privacy policy page doesn't exist yet; avoid linking users to Dograh's | [today's date] |
+| ui/src/components/Footer.tsx | Privacy policy and terms-of-service links changed from dograh.com to "#" placeholder | Laveric's own legal pages don't exist yet | [today's date] |
