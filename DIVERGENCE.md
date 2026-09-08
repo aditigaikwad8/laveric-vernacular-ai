@@ -14,3 +14,11 @@ you add - those never conflict on rebase).
 | ui/src/app/overview/page.tsx | GitHub issues link and docs link replaced with "#"; branding text reworded | github.com/dograh-hq is Dograh's public OSS repo — no Laveric equivalent exists (fork is private per UPSTREAM.md); needs a real support-contact link once Laveric decides how users should report issues, not necessarily GitHub | [date] |
 
 | ui/.env.example | NEXT_PUBLIC_POSTHOG_KEY value cleared | Prevent PostHog client-side telemetry init regardless of ENABLE_TELEMETRY, since instrumentation-client.ts gates on this key independently | [date] |
+| ui/src/components/layout/AppSidebar.tsx | Docs link → "#" | Laveric docs site not live yet | [date] |
+| ui/src/app/overview/page.tsx | Branding text removed; docs/GitHub links → "#" | Same; GitHub link had no Laveric equivalent (private fork) | [date] |
+| ui/src/app/recordings/page.tsx | Docs link → "#" | Same | [date] |
+| ui/src/app/settings/page.tsx | Branding text removed; docs links → "#" | Same | [date] |
+| ui/src/app/telephony-configurations/page.tsx | Docs link → "#" | Same | [date] |
+| ui/src/app/tools/page.tsx | Docs link → "#" | Same | [date] |
+| ui/src/components/MCPSection.tsx | Docs link → "#" | Same | [date] |
+| ui/src/app/files/page.tsx | Docs link → "#" | Same | [date] |
