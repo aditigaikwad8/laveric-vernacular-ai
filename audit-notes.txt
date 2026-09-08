@@ -1,54 +1,188 @@
-W2 Audit Findings — 05-09-2026
+W2 Audit Findings — 05-09-2026 (updated)
 
-1. Telemetry: ENABLE_TELEMETRY controlled via api/constants.py:158, 
-   gated in app.py:18. Set to false in .env. [Restart + browser 
-   Network-tab check still pending — see open items.]
+=====================================================================
+CRITICAL / LIVE CALLING-HOME — CONFIRMED BY RUNTIME EVIDENCE
+=====================================================================
 
-2. Hardcoded keys: none found in source. Two placeholder secrets in 
-   api/.env.example must be replaced before real deployment:
-   - DOGRAH_DEVOPS_SECRET
-   - TURN_SECRET
-
-3. Managed-platform code: extensive — organization_bootstrap.py, 
-   managed_model_services.py, Cloudonix managed SIP provisioning, MPS 
-   correlation IDs, quota_service.py authorization checks. NOT a small 
-   removal — needs senior review before any edits.
-
-4. UI links: ~15+ files hardcode app.dograh.com / docs.dograh.com / 
-   www.dograh.com (billing, files, overview, settings, telephony pages, 
-   tools, sidebar, footer, client.gen.ts base URL). One existing 
-   constant found: ui/src/constants/documentation.ts (DOCS_BASE) - 
-   may already centralize some doc links, needs checking.
-
-5. Footer: ui/src/components/Footer.tsx links to dograh.com privacy 
-   policy and terms of service - needs Laveric's own URLs once ready.
-
-6. LICENSE: confirmed intact, BSD-2-Clause, copyright holder "Zansat 
-   Technologies Private Limited" (2025) - must not be deleted or edited.
-
-Open items before any code changes: telemetry browser-verification 
-(steps 2-5), senior review of managed-platform scope, CI audit script.
-
-
-### CRITICAL FINDING — confirmed live "calling home"
-During a test signup (02:51:14–02:51:22), the API made real successful
+FINDING A — Backend: live calls to services.dograh.com on every signup
+During a test signup (02:51:14–02:51:22, DEPLOYMENT_MODE=oss confirmed
+[VERIFY: confirm this was the actual value in .env during the test,
+not assumed from the code default]), the API made real successful
 outbound calls to Dograh's own servers:
-- POST https://services.dograh.com/api/v1/service-keys/ -> 200 OK
-- PUT https://services.dograh.com/api/v1/cloudonix/domains/self -> 200 OK
+  - POST https://services.dograh.com/api/v1/service-keys/     -> 200 OK
+  - PUT  https://services.dograh.com/api/v1/cloudonix/domains/self -> 200 OK
 
-This is triggered from organization_bootstrap.py, which auto-provisions
-"Dograh-managed model services" and "Dograh-managed SIP connectivity" for
-every new organization. This confirms the managed-platform code found
-earlier is not dead/theoretical code — it actively runs and reaches
-Dograh's infrastructure on every signup. This must be disabled/removed
-before further testing that creates real accounts, and needs senior
-review before deciding how (per Section 0 review gates).
+Triggered from organization_bootstrap.py, which auto-provisions
+"Dograh-managed model services" and "Dograh-managed SIP connectivity"
+for every new organization, via mps_service_key_client.py
+(create_service_key(), ensure_cloudonix_domain()).
 
+This confirms the managed-platform code found in code review is NOT
+dead/theoretical — it actively runs and reaches Dograh's infrastructure
+on every signup, in default OSS mode. Must be disabled/removed before
+any further testing that creates real accounts. Needs senior review
+before deciding how (per Section 0 review gates — this borders on auth
+and telephony provisioning).
 
-POSTHOG_KEY usage: found in ui/src/app/api/config/posthog/route.ts (reads 
-POSTHOG_KEY) and ui/src/instrumentation-client.ts (reads 
-NEXT_PUBLIC_POSTHOG_KEY, calls posthog.init() if present). 
-NOT gated behind ENABLE_TELEMETRY — this is a SEPARATE env variable. 
-Setting ENABLE_TELEMETRY=false does not stop PostHog from initializing.
-Fix needed: either unset NEXT_PUBLIC_POSTHOG_KEY in our .env, or make 
-this check also respect ENABLE_TELEMETRY.
+FINDING B — Frontend: live Chatwoot widget loads Dograh assets on every page
+Browser Network tab (filtered by ".com") shows ~20+ requests to
+chat.dograh.com/widget on every page load, including Branding-*.js and
+useBranding-*.js files.
+
+Root cause traced: ui/src/app/layout.tsx renders <ChatwootWidget />
+site-wide (line 90). ui/src/components/ChatwootWidget.tsx loads a live
+chat script from Dograh's own Chatwoot instance at chat.dograh.com on
+every page load. This is the source of the Branding.js/useBranding.js
+requests seen in the Network tab.
+
+Fix: [environment-variable controlled / needs code edit — fill in
+after Step 2 investigation below]
+
+FINDING C — Blocker for Finding B: UI runs a prebuilt Dograh image, not our source
+Chatwoot URL/token not found in docker-compose.yaml or ui/.env.example.
+Confirmed: the ui service runs dograhai/dograh-ui:latest, a PREBUILT
+image pulled from Dograh's own container registry — NOT built from our
+/ui source directory.
+
+This means NEXT_PUBLIC_CHATWOOT_* values (and possibly
+NEXT_PUBLIC_POSTHOG_KEY, see below) are likely baked into that image at
+build time by Dograh, before they published it. Setting these vars in
+our own .env may NOT override an already-compiled Next.js bundle —
+Next.js inlines NEXT_PUBLIC_* vars at build time, not at container
+start.
+
+IMPLICATION: fixing Findings B may require building our OWN ui image
+from our own /ui source (docker build, not docker pull) rather than
+consuming Dograh's prebuilt image at all. This is arguably part of
+what W1/W2 are meant to lead to anyway ("the same Docker image runs
+both our shared multi-client instance and a dedicated per-client
+instance" — that image needs to be ours). Flagging as a possible
+scope addition to Task 3, not just a config fix.
+
+=====================================================================
+TASK 1 — TELEMETRY
+=====================================================================
+
+1a. ENABLE_TELEMETRY controlled via api/constants.py:158, gated in
+    app.py:18. Set to false LOCALLY in .env for testing.
+    NOT YET FIXED IN SOURCE: constants.py default is still "true"
+    (os.getenv("ENABLE_TELEMETRY", "true")). A deployment that omits
+    this env var entirely will silently default to telemetry ON.
+    Fix required: change default to "false" in constants.py.
+    [Restart + browser Network-tab re-check still pending after fix.]
+
+1b. PostHog is NOT gated by ENABLE_TELEMETRY — separate mechanism.
+    Found in:
+      - ui/src/app/api/config/posthog/route.ts (reads POSTHOG_KEY)
+      - ui/src/instrumentation-client.ts (reads NEXT_PUBLIC_POSTHOG_KEY,
+        calls posthog.init() directly if present, independent of the
+        backend ENABLE_TELEMETRY flag)
+    Setting ENABLE_TELEMETRY=false does NOT stop PostHog from
+    initializing. This variable did not surface in the earlier
+    "telemetry" keyword grep because the file doesn't contain that
+    literal word — found only by reading actual init call sites.
+    Fix needed: either (a) unset NEXT_PUBLIC_POSTHOG_KEY, or (b) make
+    instrumentation-client.ts also check ENABLE_TELEMETRY before
+    calling posthog.init(). (b) preferred — doesn't rely on every
+    deployment remembering to leave a var blank.
+    NOTE: same NEXT_PUBLIC_* prebuilt-image caveat as Finding C may
+    apply here too — needs checking once the image-source question is
+    resolved.
+
+=====================================================================
+TASK 2 — DEFAULT KEYS / SECRETS
+=====================================================================
+
+2a. Hardcoded keys/secrets: none found in source (grep for
+    sk-[A-Za-z0-9]{20,} and similar patterns returned zero hits).
+
+2b. Two operational secrets in api/.env.example still at placeholder
+    values — MUST be set to real values before any production
+    deployment. These are NOT Dograh-dependency issues; separating
+    them from the Dograh-specific list below for clarity:
+      - TURN_SECRET — our own coturn/WebRTC relay secret, unrelated to
+        Dograh's infrastructure. General deployment-hardening item,
+        not a W2 severing item.
+      - DOGRAH_DEVOPS_SECRET — Dograh-branded, usage NOT YET TRACED.
+        OPEN ITEM: grep and read where this is consumed before closing
+        Task 2 — could be another live dependency like MPS, or legacy/
+        unused. Do not assume either way.
+
+2c. MPS_API_URL (defaults to https://services.dograh.com) and
+    TUNER_BASE_URL (defaults to https://api.usetuner.ai) both default
+    to hosted third-party endpoints — see main W2 report Task 2/3 for
+    full analysis. Fix for MPS_API_URL blocked on Task 3 senior
+    decision. TUNER_BASE_URL usage still needs to be read/classified.
+
+=====================================================================
+TASK 3 — MANAGED-PLATFORM CODE
+=====================================================================
+
+3a. Managed-platform code confirmed extensive, not a small removal:
+    organization_bootstrap.py, managed_model_services.py,
+    mps_service_key_client.py, mps_billing.py, Cloudonix managed SIP
+    provisioning, MPS correlation IDs, quota_service.py authorization
+    checks.
+
+3b. NOW CONFIRMED LIVE, NOT THEORETICAL (see Findings A, B, C above).
+    This upgrades the earlier "code analysis suggests OSS mode still
+    depends on Dograh's servers" finding to "empirically confirmed via
+    captured HTTP logs and browser Network tab during a real test
+    signup." Escalation to senior already sent (see main W2 report,
+    Section 5) — Findings A/B/C strengthen that escalation and should
+    be attached to it if not already.
+
+3c. NEEDS SENIOR REVIEW before any code edits — per Section 0 review
+    gates, this borders on auth (service-key issuance) and telephony
+    provisioning (Cloudonix SIP). No edits made pending response.
+
+=====================================================================
+TASK 4 — EXTERNAL LINKS / BRANDING
+=====================================================================
+
+4a. ~15+ files hardcode app.dograh.com / docs.dograh.com /
+    www.dograh.com: billing, files, overview, settings, telephony
+    pages, tools, sidebar, footer, client.gen.ts base URL.
+
+4b. One existing constant found: ui/src/constants/documentation.ts
+    (DOCS_BASE) — may already centralize some doc links. NEEDS
+    CHECKING whether this is a genuine choke point (per the guide's
+    "centralize the choke points" principle) or just one of several
+    scattered constants.
+
+4c. ui/src/components/Footer.tsx links to dograh.com privacy policy
+    and terms of service — needs Laveric's own URLs once ready.
+
+4d. NEW: the ChatwootWidget branding assets (Finding B) and the
+    prebuilt-image issue (Finding C) both belong under this task's
+    scope too, not just Task 3 — the widget is a branding/identity
+    surface as much as a dependency issue.
+
+=====================================================================
+TASK 5 — LEGAL / LICENSE
+=====================================================================
+
+5a. LICENSE confirmed intact: BSD-2-Clause, copyright holder "Zansat
+    Technologies Private Limited" (2025) — must not be deleted or
+    edited. (Also useful: confirms Dograh's actual legal entity name
+    for Task 4's link-mapping and CI forbidden-string work.)
+
+=====================================================================
+OPEN ITEMS BEFORE ANY CODE CHANGES
+=====================================================================
+- Telemetry: apply constants.py default fix (1a); resolve PostHog
+  gating (1b); re-run browser Network-tab verification after both.
+- Trace DOGRAH_DEVOPS_SECRET usage (2b).
+- Senior review of managed-platform scope — escalation sent, response
+  pending. Attach Findings A/B/C as supporting evidence.
+- Senior/team decision on building our own ui image from source vs.
+  configuring the prebuilt dograhai/dograh-ui:latest image (Finding C)
+  — this affects Task 1 (PostHog), Task 3, and Task 4 simultaneously,
+  so worth resolving as its own decision rather than patching around
+  it three separate times.
+- Read TUNER_BASE_URL usage (2c).
+- Check whether DOCS_BASE in documentation.ts is a real choke point
+  (4b).
+- Build CI audit script (Task 5 of main guide) — deferred until the
+  above resolve, since the forbidden-string/domain list depends on
+  what's actually being removed vs. kept.
