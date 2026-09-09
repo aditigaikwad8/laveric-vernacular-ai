@@ -46,6 +46,10 @@ class MPSServiceKeyClient:
         self.base_url = MPS_API_URL
         self.timeout = httpx.Timeout(10.0)
 
+    def _require_base_url(self, operation: str) -> None:
+        if not self.base_url:
+            raise MPSUnavailableError(operation, status_code=None)
+
     def _get_headers(
         self,
         organization_id: Optional[int] = None,
@@ -90,6 +94,8 @@ class MPSServiceKeyClient:
         For OSS mode: organization_id should be None
         For authenticated mode: organization_id should be provided
         """
+        self._require_base_url("create_service_key")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             request_body = {
                 "name": name,
@@ -145,6 +151,8 @@ class MPSServiceKeyClient:
         scoped by ``organization_id`` and authenticated with the Dograh/MPS
         control-plane secret. No model-service key participates in ownership.
         """
+        self._require_base_url("ensure_cloudonix_domain")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.put(
                 f"{self.base_url}/api/v1/cloudonix/domains/self",
@@ -180,6 +188,8 @@ class MPSServiceKeyClient:
         For OSS mode: Use created_by to filter keys
         For authenticated mode: Use organization_id to filter keys
         """
+        self._require_base_url("get_service_keys")
+        
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             params = {}
 
@@ -231,6 +241,8 @@ class MPSServiceKeyClient:
         created_by: Optional[str] = None,
     ) -> Optional[dict]:
         """Get a specific service key by ID."""
+        self._require_base_url("get_service_key_by_id")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
                 f"{self.base_url}/api/v1/service-keys/{key_id}",
@@ -282,6 +294,7 @@ class MPSServiceKeyClient:
         For OSS mode: Validates that created_by matches the key creator
         For authenticated mode: Validates organization_id matches
         """
+        self._require_base_url("archive_service_key")
         # First, verify ownership
         key = await self.get_service_key_by_id(key_id, organization_id, created_by)
         if not key:
@@ -317,6 +330,8 @@ class MPSServiceKeyClient:
         Raises:
             HTTPException: If the API call fails
         """
+        self._require_base_url("check_service_key_usage")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
                 f"{self.base_url}/api/v1/service-keys/usage/self",
@@ -352,6 +367,7 @@ class MPSServiceKeyClient:
         Returns:
             Dictionary containing total_credits_used and remaining_credits
         """
+        self._require_base_url("get_usage_by_created_by")
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.base_url}/api/v1/service-keys/usage/created-by",
@@ -383,6 +399,8 @@ class MPSServiceKeyClient:
         billing_details: Optional[dict] = None,
     ) -> dict:
         """Create a short-lived MPS checkout URL for adding organization credits."""
+        self._require_base_url("create_credit_purchase_url")
+
         payload = {
             "created_by": created_by,
             "return_url": return_url,
@@ -420,6 +438,8 @@ class MPSServiceKeyClient:
         created_by: Optional[str] = None,
     ) -> dict:
         """Get the MPS v2 billing account balance and recent credit ledger."""
+        self._require_base_url("get_credit_ledger")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
                 f"{self.base_url}/api/v1/billing/accounts/{organization_id}/ledger",
@@ -447,6 +467,8 @@ class MPSServiceKeyClient:
         """Return MPS-owned effective platform and Dograh model prices for an org."""
         if DEPLOYMENT_MODE == "oss":
             raise ValueError("OSS deployments do not fetch hosted billing prices")
+
+        self._require_base_url("get_billing_pricing")
 
         operation = "get_billing_pricing"
         try:
@@ -484,6 +506,8 @@ class MPSServiceKeyClient:
         created_by: Optional[str] = None,
     ) -> dict:
         """Create or return the MPS v2 billing account for an organization."""
+        self._require_base_url("ensure_billing_account_v2")
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
                 f"{self.base_url}/api/v1/billing/accounts/{organization_id}/balance",
@@ -518,6 +542,8 @@ class MPSServiceKeyClient:
         created_by: Optional[str] = None,
     ) -> dict:
         """Authorize a hosted workflow run and optionally mint its MPS correlation."""
+        self._require_base_url("authorize_workflow_run_start")
+
         payload = {
             "workflow_run_id": workflow_run_id,
             "service_key": service_key,
@@ -560,6 +586,8 @@ class MPSServiceKeyClient:
         metadata: Optional[dict] = None,
     ) -> dict:
         """Authorize an OSS run using the configured service key as identity."""
+        self._require_base_url("authorize_service_key_run_start")
+
         payload = {
             "workflow_run_id": workflow_run_id,
             "require_correlation_id": require_correlation_id,
@@ -598,6 +626,8 @@ class MPSServiceKeyClient:
         workflow_run_id: int | None = None,
     ) -> dict:
         """Mint a server-generated correlation ID for managed model services."""
+        self._require_base_url("create_correlation_id")
+
         payload: dict[str, int] = {}
         if workflow_run_id is not None:
             payload["workflow_run_id"] = workflow_run_id
@@ -636,6 +666,8 @@ class MPSServiceKeyClient:
         max_attempts: int = 3,
     ) -> dict:
         """Report hosted Dograh platform usage for a completed workflow run."""
+        self._require_base_url("report_platform_usage")
+
         if DEPLOYMENT_MODE == "oss":
             raise ValueError("OSS deployments must not report platform usage to MPS")
         if not correlation_id and duration_seconds is None:
@@ -725,6 +757,8 @@ class MPSServiceKeyClient:
         Raises:
             httpx.HTTPStatusError: If the API call fails
         """
+        self._require_base_url("transcribe_audio")
+
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
             files = {
                 "file": (filename, audio_data, content_type),
@@ -772,6 +806,8 @@ class MPSServiceKeyClient:
         rejects the credential. Dependency failures raise ``MPSUnavailableError``
         so callers never misreport a Dograh outage as a customer configuration error.
         """
+        self._require_base_url("validate_service_key")
+
         operation = "validate_service_key"
         try:
             with httpx.Client(timeout=self.timeout) as client:
@@ -832,6 +868,8 @@ class MPSServiceKeyClient:
         Raises:
             MPSUnavailableError: If MPS cannot return the voice catalog
         """
+        self._require_base_url("get_voices")
+
         operation = "get_voices"
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -903,6 +941,7 @@ class MPSServiceKeyClient:
         Timeout is 300s to match the ALB idle_timeout configured in
         infrastructure/mps/main.tf. Raises on non-2xx responses.
         """
+        self._require_base_url("process_document")
         data = {
             "retrieval_mode": retrieval_mode,
             "max_tokens": str(max_tokens),
@@ -968,6 +1007,8 @@ class MPSServiceKeyClient:
         Raises:
             HTTPException: If the API call fails
         """
+        self._require_base_url("call_workflow_api")
+        
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
             response = await client.post(
                 f"{self.base_url}/api/v1/workflow/create-workflow",
