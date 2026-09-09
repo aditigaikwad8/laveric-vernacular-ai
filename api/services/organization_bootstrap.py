@@ -155,16 +155,24 @@ async def _bootstrap_organization(
                 exc_info=True,
             )
 
-        configuration = await provision_dograh_managed_model_configuration(
-            organization_id,
-            created_by=created_by,
-        )
+        try:
+            configuration = await provision_dograh_managed_model_configuration(
+                organization_id,
+                created_by=created_by,
+            )
+        except MPSUnavailableError:
+            logger.info(
+                "MPS not configured — skipping Dograh-managed model configuration provisioning for organization {}",
+                organization_id,
+            )
+            configuration = None
         # Persist before provisioning SIP: the service key is already issued and
         # minting is not idempotent, so the shorter the window in which a crash
         # can lose it, the fewer orphaned keys a retry leaves behind.
-        await upsert_organization_ai_model_configuration_v2(
-            organization_id, configuration
-        )
+        if configuration is not None:
+            await upsert_organization_ai_model_configuration_v2(
+                organization_id, configuration
+            )
 
     if sip_provisioned:
         return True
