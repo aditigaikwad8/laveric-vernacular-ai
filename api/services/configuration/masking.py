@@ -13,7 +13,6 @@ import copy
 from typing import Any, Dict, Optional
 
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
-from api.services.configuration.registry import ServiceConfig
 from api.services.integrations import get_node_secret_fields
 
 VISIBLE_CHARS = 4  # number of trailing characters to reveal
@@ -115,7 +114,7 @@ def resolve_masked_api_keys(
 # ---------------------------------------------------------------------------
 
 
-def _mask_service(service_cfg: Optional[ServiceConfig]) -> Optional[Dict[str, Any]]:
+def _mask_service(service_cfg: Optional[Any]) -> Optional[Dict[str, Any]]:
     if service_cfg is None:
         return None
 

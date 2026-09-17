@@ -1916,6 +1916,15 @@ class AzureOpenAIEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
         description="Azure OpenAI API version for embeddings.",
     )
 
+EmbeddingsConfig = Annotated[
+    Union[
+        OpenAIEmbeddingsConfiguration,
+        OpenRouterEmbeddingsConfiguration,
+        AzureOpenAIEmbeddingsConfiguration,
+    ],
+    Field(discriminator="provider"),
+]
+
 
 
 

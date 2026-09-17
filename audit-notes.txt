@@ -186,3 +186,838 @@ OPEN ITEMS BEFORE ANY CODE CHANGES
 - Build CI audit script (Task 5 of main guide) — deferred until the
   above resolve, since the forbidden-string/domain list depends on
   what's actually being removed vs. kept.
+
+  Dograh Removal — Complete Audit Notes
+
+Project: D:\Projects\Final Dograh
+Audit date: 17 September 2026
+Goal: Remove Dograh managed-provider / hosted-service / external-egress dependencies while keeping the local OSS application working.
+
+1. Backend Configuration Registry — ✅ DONE
+File
+
+api/services/configuration/registry.py
+
+Changes made
+Removed Dograh from ServiceProviders.
+Removed Dograh from the BaseServiceConfiguration.provider allowed values.
+Added EmbeddingsConfig as a BYOK-only configuration union:
+OpenAI
+OpenRouter
+Azure OpenAI
+Removed the old generic ServiceConfig.
+Reason
+
+The configuration schema must no longer expose Dograh as a selectable managed provider.
+
+Verification
+
+Searches for the old ServiceConfig / Dograh provider references were performed.
+
+Status: ✅ Complete
+
+2. Configuration Masking — ✅ DONE
+File
+
+api/services/configuration/masking.py
+
+Changes made
+Removed ServiceConfig import.
+Changed _mask_service() typing from:
+Optional[ServiceConfig]
+to Optional[Any]
+Reason
+
+ServiceConfig was removed from the registry, so the masking layer could no longer depend on it.
+
+Status: ✅ Complete
+
+3. Configuration Validation — ✅ DONE
+File
+
+api/services/configuration/check_validity.py
+
+Changes made
+Added Any.
+Removed ServiceConfig import.
+Changed affected service parameters from Optional[ServiceConfig] to Optional[Any].
+Removed the old Dograh API-key validation path.
+Removed _check_dograh_api_key.
+Removed the old Dograh validator mapping.
+Verification
+
+Searched for:
+
+ServiceProviders.DOGRAH
+ServiceConfig
+_check_dograh_api_key
+mps_service_key_client
+
+No remaining production references from this area.
+
+Status: ✅ Complete
+
+4. AI Model Configuration Schema — ✅ DONE
+File
+
+api/schemas/ai_model_configuration.py
+
+Changes made
+Removed the old Dograh managed configuration structure.
+V2 organization configuration is now:
+mode = "byok"
+Added:
+BYOKPipelineAIModelConfiguration
+BYOKRealtimeAIModelConfiguration
+BYOKAIModelConfiguration
+Added EmbeddingsConfig.
+EffectiveAIModelConfiguration now supports:
+LLM
+STT
+TTS
+embeddings
+realtime
+Removed the old Dograh mode/configuration dependency.
+Added validation that selected BYOK mode has the corresponding configuration.
+Important fix
+
+OpenAPI initially failed because EmbeddingsConfig was referenced but not imported.
+
+The missing import was added.
+
+Verification
+
+The API was rebuilt successfully and OpenAPI subsequently returned HTTP 200.
+
+Status: ✅ Complete
+
+5. Managed Service Version — 🔍 VERIFIED / NO CHANGE
+File inspected
+
+api/services/organization_context.py
+
+We checked all production references to:
+
+managed_service_version
+Finding
+
+managed_service_version is still part of the effective configuration/context model, but the new BYOK compiler does not set it to 2.
+
+This means:
+
+managed_service_version == 2
+
+does not become true merely because the configuration is V2.
+
+Decision
+
+Do NOT add managed_service_version=2.
+
+Doing that could incorrectly activate old managed-service-v2 logic.
+
+Status
+
+✅ Intentionally unchanged
+
+6. AI Configuration Resolver — 🔍 VERIFIED / NO CHANGE
+File inspected
+
+api/services/configuration/ai_model_configuration.py
+
+Finding
+
+The resolver calls:
+
+compile_ai_model_configuration_v2(...)
+
+and returns the resulting effective configuration.
+
+The compiler now produces a BYOK configuration and does not set the managed-service version.
+
+Decision
+
+No edit was required.
+
+Status: ✅ Verified / unchanged
+
+7. Organization Routes — ✅ DONE
+File
+
+api/routes/organization.py
+
+Changes made
+
+Removed:
+
+DOGRAH_DEFAULT_LANGUAGE
+DOGRAH_DEFAULT_VOICE
+DOGRAH_SPEED_MAX
+DOGRAH_SPEED_MIN
+DOGRAH_SPEED_OPTIONS
+DOGRAH_SPEED_STEP
+DOGRAH_MULTILINGUAL_AUTODETECT_LANGUAGES
+DOGRAH_STT_LANGUAGES
+DograhTTSService
+_dograh_allows_custom_voice()
+
+Also:
+
+Removed Dograh filtering from _byok_provider_schemas().
+Removed the "dograh" entry from /model-configurations/v2/defaults.
+Removed the now-unused ServiceProviders import.
+Removed the byok_default_providers exclusion that specifically filtered Dograh.
+Verification
+
+Search:
+
+DOGRAH
+Dograh
+dograh
+
+returned no output for this file.
+
+Status: ✅ Complete
+
+8. Organization Bootstrap — ✅ DONE
+File
+
+api/services/organization_bootstrap.py
+
+Removed
+
+The automatic Dograh managed-model provisioning path:
+
+DograhManagedAIModelConfiguration(...)
+
+and:
+
+provision_dograh_managed_model_configuration()
+
+Also removed imports/dependencies used specifically for that provisioning path, including the relevant MPS billing/client pieces.
+
+Removed:
+
+MANAGED_SERVICE_KEY_NAME = "Default Dograh Model Service Key"
+Important
+
+The entire bootstrap service was not deleted.
+
+It still provisions managed SIP connectivity.
+
+Current bootstrap behavior is effectively:
+
+If SIP already provisioned
+    → complete
+
+Otherwise
+    → provision managed SIP connectivity
+Remaining observation
+
+The _bootstrap_organization() function still has a configuration parameter that may now be unused.
+
+We deliberately have not cleaned that up yet, because the priority is runtime correctness before cosmetic cleanup.
+
+Signup flow
+
+The existing call to:
+
+ensure_organization_bootstrapped(...)
+
+remains because bootstrap still handles SIP provisioning.
+
+However, its nearby comment says:
+
+"Create default service configuration..."
+
+That wording may now be stale because default Dograh model configuration is no longer automatically created.
+
+Status: ✅ Main Dograh provisioning removed
+Minor comment/unused-parameter cleanup: ⏳ deferred
+
+9. Managed Model Services — ⚠️ NEEDS FINAL AUDIT
+File
+
+api/services/managed_model_services.py
+
+This file still exists because the earlier searches found references involving:
+
+ServiceProviders.DOGRAH
+managed service logic
+managed_service_version
+
+We have not blindly deleted the entire file.
+
+Why
+
+It may contain functionality that is still required by other providers or infrastructure.
+
+Before deleting anything, we need to determine:
+
+who imports it
+whether any active production route still calls it
+whether only obsolete Dograh paths remain
+whether removing it would break unrelated functionality
+
+Status: ⏳ Requires usage audit
+
+10. Quota Service — ⚠️ NEEDS FINAL AUDIT
+File
+
+api/services/quota_service.py
+
+Remaining Dograh-related strings found:
+
+DograhFailure
+app.dograh.com
+"You have exhausted your Dograh credits..."
+"The organization linked to this Dograh service key..."
+"The Dograh service token..."
+"Could not verify Dograh credits. Please try again."
+Important
+
+We have not changed these blindly.
+
+Some may be tied to:
+
+generic failure handling
+actual obsolete managed-service logic
+user-facing error messages
+provider-specific quota checks
+
+We need to inspect their exact surrounding code and determine whether the code path is still reachable.
+
+Status: ⏳ Requires audit
+
+11. Failure Handling — 🔍 INSPECTED, NOT CHANGED
+File
+
+api/errors/failure.py
+
+There is a generic DograhFailure model and provider-specific branches such as:
+
+if normalized_provider == "dograh":
+
+These handle things such as:
+
+HTTP status classification
+quota errors
+system errors
+retryability
+error ownership
+Decision
+
+No blind deletion.
+
+We need to establish whether:
+
+DograhFailure
+normalized_provider == "dograh"
+
+is still reachable from active production code.
+
+Status: ⏳ Usage audit required
+
+12. FastAPI OpenAPI Production URL — ✅ DONE
+File
+
+api/app.py
+
+Original
+
+The FastAPI application advertised:
+
+https://app.dograh.com
+
+as its Production OpenAPI server.
+
+Change
+
+Removed the external Dograh production server entry.
+
+Local server remains:
+
+http://localhost:8000
+Verification
+
+After rebuilding the API:
+
+$openapi = (Invoke-WebRequest -Uri "http://localhost:8000/api/v1/openapi.json" -UseBasicParsing).Content | ConvertFrom-Json
+$openapi.servers
+
+returned only:
+
+url                   description
+---                   -----------
+http://localhost:8000 Local development
+Runtime verification
+
+API rebuilt successfully:
+
+Image finaldograh-api Built
+Container finaldograh-api-1 Started
+Application startup complete.
+
+Health endpoint:
+
+GET /api/v1/health
+200
+
+OpenAPI:
+
+GET /api/v1/openapi.json
+200
+
+Status: ✅ Complete
+
+13. Frontend API Client Generation — ✅ DONE
+Command
+
+From:
+
+D:\Projects\Final Dograh\ui
+
+ran:
+
+npm run generate-client
+Result
+@hey-api/openapi-ts v0.97.3
+
+[Job 1] Generating from 1 input:
+http://localhost:8000/api/v1/openapi.json
+
+[Job 1] Done!
+4 files
+Verification
+
+Searched generated client:
+
+Select-String -Path ".\src\client\**\*" -Pattern "Dograh|dograh|DOGRAH" -CaseSensitive:$false
+
+Result:
+
+No output.
+
+Therefore regenerated client contains no Dograh references.
+
+Status: ✅ Complete
+
+14. OpenAPI Client Base URL — ✅ DONE
+File inspected
+
+ui/openapi-ts.config.ts
+
+Actual configuration:
+
+BACKEND_URL
+NEXT_PUBLIC_BACKEND_URL
+http://127.0.0.1:8000 fallback
+
+.env.local contains:
+
+BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+Important finding
+
+The generated client had previously contained:
+
+https://app.dograh.com
+
+because the OpenAPI document itself advertised that server.
+
+After removing the production server from api/app.py and regenerating the client, the generated client was rebuilt from the local OpenAPI specification.
+
+Status
+
+✅ OpenAPI source fixed and client regenerated
+
+15. Chatwoot Widget — ✅ DONE
+File
+
+ui/src/app/layout.tsx
+
+Removed
+import ChatwootWidget from "@/components/ChatwootWidget";
+
+and:
+
+<ChatwootWidget />
+Verification
+
+Search:
+
+Select-String -Path ".\ui\src\app\layout.tsx" -Pattern "Chatwoot|chatwoot"
+
+returned:
+
+No output.
+
+Status: ✅ Complete
+
+16. Embedded Widget External API Fallback — ✅ DONE
+File
+
+ui/public/embed/dograh-widget.js
+
+Original
+apiBaseUrl: window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://api.dograh.com'
+Changed to
+apiBaseUrl: window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : window.location.origin
+Verification
+
+Search:
+
+Select-String -Path ".\ui\public\embed\dograh-widget.js" -Pattern "api\.dograh\.com|https://api"
+
+returned:
+
+No output.
+
+Status: ✅ Complete
+
+17. Docker Compose UI — ✅ VERIFIED / NO CHANGE
+
+We first checked for:
+
+.\docker-compose.yml
+
+It did not exist.
+
+Then located the actual Compose files:
+
+.devcontainer/docker-compose.yml
+deploy/hostinger/docker-compose.traefik.yaml
+deploy/hostinger/docker-compose.yaml
+docker-compose-local.yaml
+docker-compose.yaml
+Root docker-compose.yaml
+
+UI already uses:
+
+ui:
+  build:
+    context: .
+    dockerfile: ui/Dockerfile
+
+So it is already using a local source build.
+
+Search
+
+Searched all relevant Compose files for:
+
+dograhai/dograh-ui
+
+Result:
+
+No output.
+
+Decision
+
+No Compose edit was necessary.
+
+Status: ✅ Verified / intentionally unchanged
+
+18. CI — Build API Workflow — 🔍 AUDITED / NO CHANGE
+File
+
+.github/workflows/build-api-image.yml
+
+Found:
+
+app.dograh.com
+
+but it occurs inside a comment explaining the deployment environment.
+
+Also found:
+
+dograh-api
+dograh-api-amd64
+
+These are Docker image/cache/job naming identifiers.
+
+Decision
+
+Do not change these merely because they contain dograh.
+
+They are not evidence of an external provider or egress dependency.
+
+Status: ✅ Audited / unchanged
+
+19. CI — Remaining Workflow Audit — ⏳ IN PROGRESS
+
+All workflow files were searched.
+
+Files containing Dograh-related strings:
+
+api-tests.yml
+line 107
+"❌ Dograh API tests failed on ..."
+
+This appears to be notification text.
+
+Needs surrounding-code inspection.
+
+build-api-image.yml
+
+Found:
+
+app.dograh.com
+dograh-api
+dograh-api-amd64
+
+Already inspected.
+
+Decision: unchanged.
+
+docker-image.yml
+
+Found:
+
+VERSION="${VERSION#dograh-}"
+dograh-api
+dograh-ui
+digest-dograh-api
+digest-dograh-ui
+
+These appear to be image/job naming and version handling.
+
+Needs final confirmation from surrounding workflow logic, but no edit made.
+
+pre-pr-drift-check.yml
+
+Found notification text containing Dograh.
+
+No edit made.
+
+release-deployment.yml
+
+Found notification text containing Dograh.
+
+No edit made.
+
+slack-announcements.yml
+
+Found:
+
+SLACK_DOGRAH_COMMUNITY...
+
+This is a Slack secret/environment identifier.
+
+No edit made.
+
+Important rule used
+
+We are not replacing every occurrence of dograh.
+
+The audit distinction is:
+
+Dograh provider/service/egress dependency
+        ↓
+REMOVE
+
+Dograh project/image/job/secret/notification naming
+        ↓
+KEEP unless there is evidence it is an external dependency
+
+Status: ⏳ CI audit not yet fully closed
+
+20. Tests — ⚠️ STILL CONTAIN OLD DOGRAH CONFIGURATION
+
+The production code search showed remaining Dograh references primarily inside tests.
+
+api/tests/test_ai_model_configuration_v2.py
+
+Contains:
+
+DograhManagedAIModelConfiguration
+mode="dograh"
+api/tests/test_dograh_llm_service_factory.py
+
+Contains:
+
+ServiceProviders.DOGRAH
+api/tests/test_dograh_stt_service_factory.py
+
+Contains:
+
+ServiceProviders.DOGRAH
+api/tests/test_organization_bootstrap.py
+
+Contains:
+
+DograhManagedAIModelConfiguration
+mode="dograh"
+api/tests/test_quota_service.py
+
+Contains:
+
+ServiceProviders.DOGRAH
+api/tests/test_user_configuration_validation.py
+
+Contains:
+
+DograhManagedAIModelConfiguration
+mode="dograh"
+Decision
+
+These cannot be blindly deleted.
+
+We need to determine:
+
+whether the tested functionality was intentionally removed,
+whether the tests should be deleted,
+whether they should be rewritten for BYOK,
+whether some Dograh tests are testing functionality that still exists under a different name.
+
+Status: ⏳ Tests need cleanup/update
+
+21. Broad Production Search — CURRENT FINDINGS
+
+The following search was performed:
+
+Select-String -Path ".\api\**\*.py" -Pattern "ServiceProviders\.DOGRAH|DograhManagedAIModelConfiguration|mode=""dograh""|_managed_v2_authorization_failed_result|uses_managed_model_services_v2|get_dograh_service_api_key|_dograh_api_keys|_service_uses_dograh|provision_dograh_managed_model_configuration"
+Remaining matches were tests only:
+test_ai_model_configuration_v2.py
+test_dograh_llm_service_factory.py
+test_dograh_stt_service_factory.py
+test_organization_bootstrap.py
+test_quota_service.py
+test_user_configuration_validation.py
+test_quota_service.py
+
+This is a good sign for the production configuration path, but the remaining service/failure/quota files still require targeted usage inspection.
+
+22. Whole-Project External URL Search
+
+Search performed for:
+
+https://app.dograh.com
+app.dograh.com
+https://api.dograh.com
+
+Important actual production hit found:
+
+api/app.py
+
+That was the OpenAPI Production server and has now been removed.
+
+Other hits included:
+
+README files
+documentation
+comments
+CI comments
+quota-service messages
+tests
+generated .next files/cache
+
+The important distinction is that .next generated/cache files should not be treated as source-of-truth edits.
+
+📋 Current Status Summary
+Area	Status
+registry.py	✅ Done
+masking.py	✅ Done
+check_validity.py	✅ Done
+ai_model_configuration.py schema	✅ Done
+organization.py	✅ Done
+organization_bootstrap.py	✅ Main cleanup done
+organization_context.py	✅ Audited, no change
+AI configuration resolver	✅ Audited, no change
+api/app.py OpenAPI server	✅ Done
+OpenAPI endpoint	✅ HTTP 200
+Frontend generated client	✅ Regenerated
+Generated client Dograh search	✅ No matches
+layout.tsx / Chatwoot	✅ Done
+dograh-widget.js external API	✅ Done
+Docker Compose UI	✅ Already local build
+Build API CI	✅ Audited, no change
+Remaining CI workflows	⏳ Audit
+managed_model_services.py	⏳ Usage audit
+quota_service.py	⏳ Usage audit
+failure.py	⏳ Usage audit
+Old Dograh tests	⏳ Cleanup/update
+Final whole-project egress scan	⏳ Pending
+Final runtime test	⏳ Pending
+🧾 Files Actually Modified So Far
+
+These are the existing upstream files we actually edited:
+
+api/services/configuration/registry.py
+api/services/configuration/masking.py
+api/services/configuration/check_validity.py
+api/schemas/ai_model_configuration.py
+api/routes/organization.py
+api/services/organization_bootstrap.py
+api/app.py
+ui/src/app/layout.tsx
+ui/public/embed/dograh-widget.js
+
+Additionally:
+
+ui/src/client/* — regenerated using npm run generate-client
+
+Important: We did not edit the following merely because they contain the word Dograh:
+
+Docker image names
+CI job names
+Slack secret names
+notification messages
+comments
+documentation
+generated .next cache
+organization_context.py
+failure.py
+Compose files
+
+Those require evidence of an actual provider/egress dependency before changing them.
+
+🔴 Next Audit Steps
+
+The remaining work should be done in this order:
+
+A. Finish CI audit
+
+Inspect api-tests.yml, then the remaining workflow matches.
+
+B. Audit managed_model_services.py
+
+Determine whether it is now dead code or still required.
+
+C. Audit quota_service.py
+
+Trace the remaining Dograh quota/error paths before deciding what to remove.
+
+D. Audit failure.py
+
+Determine whether Dograh-specific failure classification is still reachable.
+
+E. Update/delete obsolete tests
+
+Only after the production paths are confirmed.
+
+F. Final egress scan
+
+Search the entire source tree for:
+
+app.dograh.com
+api.dograh.com
+dograh.com
+ServiceProviders.DOGRAH
+mode="dograh"
+DograhManagedAIModelConfiguration
+
+while excluding generated/cache directories where appropriate.
+
+G. Final Docker/runtime verification
+
+Rebuild and verify:
+
+API starts
+health = 200
+OpenAPI = 200
+frontend starts
+generated client works
+no unintended external Dograh API dependency

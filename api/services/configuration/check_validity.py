@@ -1,4 +1,4 @@
-from typing import Optional, TypedDict
+from typing import Any, Optional, TypedDict
 
 import httpx
 import openai
@@ -12,7 +12,7 @@ from groq import Groq
 from api.schemas.ai_model_configuration import (
     EffectiveAIModelConfiguration,
 )
-from api.services.configuration.registry import ServiceConfig, ServiceProviders
+from api.services.configuration.registry import ServiceProviders
 from api.services.mps_service_key_client import mps_service_key_client
 from api.utils.url_security import validate_user_configured_service_url
 
@@ -109,7 +109,7 @@ class UserConfigurationValidator:
 
     def _validate_service(
         self,
-        service_config: Optional[ServiceConfig],
+        service_config: Optional[Any],
         service_name: str,
         required: bool = True,
     ) -> list[APIKeyStatus]:
@@ -225,7 +225,7 @@ class UserConfigurationValidator:
         self,
         provider: str,
         api_key: str,
-        service_config: Optional[ServiceConfig] = None,
+        service_config: Optional[Any] = None,
     ) -> bool:
         """Check if an API key for a provider is valid."""
         validator = self._validator_map.get(provider)
@@ -241,7 +241,7 @@ class UserConfigurationValidator:
         return validator(provider, api_key)
 
     def _check_openai_api_key(
-        self, model: str, api_key: str, service_config: Optional[ServiceConfig] = None
+        self, model: str, api_key: str, service_config: Optional[Any] = None
     ) -> bool:
         provider_name = (
             "Atlas Cloud" if model == ServiceProviders.ATLASCLOUD.value else "OpenAI"

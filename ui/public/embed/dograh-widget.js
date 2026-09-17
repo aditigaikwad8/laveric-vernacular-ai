@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dograh Widget
  * Embeddable voice & chat widget for Dograh agents
  * Version: 1.1.0
@@ -13,7 +13,7 @@
     autoStart: false,
     apiBaseUrl: window.location.hostname === 'localhost'
       ? 'http://localhost:8000'
-      : 'https://api.dograh.com'
+      : window.location.origin
   };
 
   // Widget state
@@ -46,7 +46,7 @@
       banner: null,
       seenAssistantTurnIds: new Set() // for onMessage diffing
     },
-    chatEls: null, // { panel, messages, banner, input, sendBtn, endBtn, endConfirmation, confirmEndBtn } — null in headless
+    chatEls: null, // { panel, messages, banner, input, sendBtn, endBtn, endConfirmation, confirmEndBtn } â€” null in headless
     callbacks: {
       onReady: null,
       onCallStart: null,
@@ -186,7 +186,7 @@
         injectChatStyles();
         createInlineChatWidget();
       } else if (state.config.embedMode === 'headless') {
-        // No UI — the host page drives chat via the window.DograhWidget API.
+        // No UI â€” the host page drives chat via the window.DograhWidget API.
       } else {
         injectStyles();
         injectChatStyles();
@@ -254,7 +254,7 @@
 
   /**
    * Look up a visitor-facing label. The server always sends the full set, so a
-   * miss means the API is older than this script — warn rather than render
+   * miss means the API is older than this script â€” warn rather than render
    * "undefined" into the panel.
    */
   function widgetText(key) {
@@ -280,7 +280,7 @@
    * Merge visitor context supplied by the host page after the script loaded.
    *
    * The context is read when a conversation starts, so this applies to the next
-   * one — a conversation already under way keeps what it was created with.
+   * one â€” a conversation already under way keeps what it was created with.
    */
   function setContextVariables(vars) {
     if (!vars || typeof vars !== 'object' || Array.isArray(vars)) {
@@ -389,7 +389,7 @@
   }
 
   /**
-   * Create floating widget UI — a single CTA pill button anchored to the
+   * Create floating widget UI â€” a single CTA pill button anchored to the
    * configured corner of the viewport.
    */
   function createFloatingWidget() {
@@ -446,7 +446,7 @@
   }
 
   /**
-   * Create headless widget (no UI — host page drives everything via window.DograhWidget API)
+   * Create headless widget (no UI â€” host page drives everything via window.DograhWidget API)
    */
   function createHeadlessWidget() {
     const audio = document.createElement('audio');
@@ -547,7 +547,7 @@
       }
 
       /* Host pages commonly style button:hover, which out-specifies the color
-         above and can repaint the label to match its own background — the same
+         above and can repaint the label to match its own background â€” the same
          reason .dograh-widget-cta:hover pins its color. */
       .dograh-inline-btn:hover {
         color: #ffffff !important;
@@ -564,7 +564,7 @@
       }
 
       /* The start button carries the owner's configured color as an inline
-         style, so a fixed hover background would never apply — brighten
+         style, so a fixed hover background would never apply â€” brighten
          whatever color it has instead. */
       .dograh-inline-btn-start:hover {
         filter: brightness(1.08);
@@ -887,7 +887,7 @@
    */
   async function fetchTurnCredentials() {
     // Skip the request entirely when the server reports no TURN server is
-    // configured — it would only 503. Deployments without coturn (OSS/local)
+    // configured â€” it would only 503. Deployments without coturn (OSS/local)
     // fall back to STUN.
     if (state.config.turnEnabled === false) {
       console.log('Dograh Widget: TURN server disabled in server config, using STUN only');
@@ -926,7 +926,7 @@
    * Create WebRTC peer connection
    */
   function createWebRTCConnection() {
-    // A `stun:` entry can only yield srflx, never relay — and srflx has been
+    // A `stun:` entry can only yield srflx, never relay â€” and srflx has been
     // seen leaking through iceTransportPolicy: 'relay', so skip it entirely.
     // Same skip as the main app's useWebSocketRTC hook.
     const iceServers = state.config.forceTurnRelay
@@ -945,11 +945,11 @@
 
     // Reachable: turn_enabled and force_turn_relay are independent, so
     // FORCE_TURN_RELAY=true with TURN_SECRET unset (or a failed credentials
-    // fetch) leaves no ICE servers at all — no candidates, and no clue why.
+    // fetch) leaves no ICE servers at all â€” no candidates, and no clue why.
     if (state.config.forceTurnRelay && iceServers.length === 0) {
       console.error(
         'Dograh Widget: FORCE_TURN_RELAY is on but no TURN credentials are ' +
-        'available — ICE has no candidates to gather and this call cannot connect.'
+        'available â€” ICE has no candidates to gather and this call cannot connect.'
       );
     }
 
@@ -963,7 +963,7 @@
     // falling back to host/srflx.
     if (state.config.forceTurnRelay) {
       config.iceTransportPolicy = 'relay';
-      console.log('Dograh Widget: FORCE_TURN_RELAY is on — restricting ICE to relay candidates only');
+      console.log('Dograh Widget: FORCE_TURN_RELAY is on â€” restricting ICE to relay candidates only');
     }
 
     state.pc = new RTCPeerConnection(config);
@@ -1247,7 +1247,7 @@
   // ===========================================================================
   // Chat widget (widgetType === 'chat')
   //
-  // Chat speaks plain REST to the public embed chat endpoints — no WebRTC, no
+  // Chat speaks plain REST to the public embed chat endpoints â€” no WebRTC, no
   // WebSocket, no microphone. One blocking POST per turn (the server caps a
   // turn at 60s, so no client timeout below that); the typing indicator covers
   // the wait. XSS boundary: message text only ever flows through textContent.
@@ -1637,7 +1637,7 @@
       closeBtn.className = 'dograh-chat-close';
       closeBtn.type = 'button';
       closeBtn.setAttribute('aria-label', widgetText('closeChatLabel'));
-      closeBtn.textContent = '×';
+      closeBtn.textContent = 'Ã—';
       closeBtn.onclick = closeChatPanel;
       headerActions.appendChild(closeBtn);
     }
@@ -1733,7 +1733,7 @@
 
   function autoGrowChatInput(input) {
     // scrollHeight covers content + padding but not borders, and the input is
-    // border-box — without adding them back the first keystroke shrinks the
+    // border-box â€” without adding them back the first keystroke shrinks the
     // box by 2px and clips the text.
     const BORDER_Y = 2; // 1px top + 1px bottom, matches .dograh-chat-input
     input.style.height = 'auto';
@@ -1741,7 +1741,7 @@
   }
 
   /**
-   * Create floating chat widget — CTA pill toggling an anchored chat panel.
+   * Create floating chat widget â€” CTA pill toggling an anchored chat panel.
    */
   function createFloatingChatWidget() {
     const container = document.createElement('div');
@@ -1765,7 +1765,7 @@
   }
 
   /**
-   * Create inline chat widget — pre-chat CTA screen in the host container; the
+   * Create inline chat widget â€” pre-chat CTA screen in the host container; the
    * CTA, autoStart, and public API all open the same panel/session lifecycle.
    */
   function createInlineChatWidget() {
@@ -2011,7 +2011,7 @@
           return null;
         }
         state.chat.draft = trimmed;
-        updateChatStatus('ready', 'Message not sent — please try again.');
+        updateChatStatus('ready', 'Message not sent â€” please try again.');
         return null;
       }
       if (response.status === 402) {
@@ -2037,7 +2037,7 @@
       console.error('Dograh Widget: Failed to send message', error);
       state.chat.pendingUserText = null;
       state.chat.draft = trimmed;
-      updateChatStatus('ready', 'Message not sent — please try again.');
+      updateChatStatus('ready', 'Message not sent â€” please try again.');
       if (state.callbacks.onError) {
         state.callbacks.onError(error);
       }
@@ -2372,3 +2372,4 @@
   }
 
 })();
+

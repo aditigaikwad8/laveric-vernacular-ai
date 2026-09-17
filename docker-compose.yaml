@@ -141,7 +141,9 @@ services:
       - app-network
 
   api:
-    image: ${REGISTRY:-dograhai}/dograh-api:latest
+    build:
+      context: .
+      dockerfile: api/Dockerfile
     environment:
       # Core application config
       ENVIRONMENT: "${ENVIRONMENT:-local}"
@@ -256,10 +258,11 @@ services:
       TELEPHONY_WS_TOKEN_SECRET: "${TELEPHONY_WS_TOKEN_SECRET:-}"
       TELEPHONY_WS_TOKEN_ENFORCE: "${TELEPHONY_WS_TOKEN_ENFORCE:-false}"
 
-      # Telemetry
-      ENABLE_TELEMETRY: "${ENABLE_TELEMETRY:-true}"
-      POSTHOG_API_KEY: "phc_ItizB1dP6yv7ZYobbcqrpxTdbomDA8hJFSEmAMdYvIr"
-      POSTHOG_HOST: "https://us.i.posthog.com"
+      # Telemetry — disabled by default; set POSTHOG_API_KEY/POSTHOG_HOST in .env if you
+      # explicitly want to opt this deployment into telemetry.
+      ENABLE_TELEMETRY: "${ENABLE_TELEMETRY:-false}"
+      POSTHOG_API_KEY: "${POSTHOG_API_KEY:-}"
+      POSTHOG_HOST: "${POSTHOG_HOST:-}"
 
     ports:
       - "8000:8000"
@@ -284,7 +287,9 @@ services:
       - app-network
 
   ui:
-    image: ${REGISTRY:-dograhai}/dograh-ui:latest
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
     environment:
       # Bind the Next.js standalone server to all interfaces
       HOSTNAME: "0.0.0.0"
@@ -293,12 +298,12 @@ services:
       BACKEND_URL: "${BACKEND_URL:-http://api:8000}"
       NODE_ENV: "oss"
 
-      # Flag to enable/ disable posthog
-      ENABLE_TELEMETRY: "${ENABLE_TELEMETRY:-true}"
+      # Flag to enable/ disable posthog — disabled by default
+      ENABLE_TELEMETRY: "${ENABLE_TELEMETRY:-false}"
 
-      # Posthog
-      POSTHOG_KEY: "phc_ItizB1dP6yv7ZYobbcqrpxTdbomDA8hJFSEmAMdYvIr"
-      POSTHOG_HOST: "https://us.posthog.com"
+      # Posthog — set in .env if you explicitly want telemetry
+      POSTHOG_KEY: "${POSTHOG_KEY:-}"
+      POSTHOG_HOST: "${POSTHOG_HOST:-}"
     ports:
       - "3010:3010"
     depends_on:

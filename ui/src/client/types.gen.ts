@@ -532,8 +532,6 @@ export type ByokPipelineAiModelConfiguration = {
     } & GoogleLlmService) | ({
         provider: 'azure';
     } & AzureLlmService) | ({
-        provider: 'dograh';
-    } & DograhLlmService) | ({
         provider: 'aws_bedrock';
     } & AwsBedrockLlmConfiguration) | ({
         provider: 'speaches';
@@ -560,8 +558,6 @@ export type ByokPipelineAiModelConfiguration = {
     } & CartesiaTtsConfiguration) | ({
         provider: 'inworld';
     } & InworldTtsConfiguration) | ({
-        provider: 'dograh';
-    } & DograhTtsService) | ({
         provider: 'sarvam';
     } & SarvamTtsConfiguration) | ({
         provider: 'camb';
@@ -592,8 +588,6 @@ export type ByokPipelineAiModelConfiguration = {
     } & OpenAisttConfiguration) | ({
         provider: 'google';
     } & GoogleSttConfiguration) | ({
-        provider: 'dograh';
-    } & DograhSttService) | ({
         provider: 'speechmatics';
     } & SpeechmaticsSttConfiguration) | ({
         provider: 'sarvam';
@@ -621,9 +615,7 @@ export type ByokPipelineAiModelConfiguration = {
         provider: 'openrouter';
     } & OpenRouterEmbeddingsConfiguration) | ({
         provider: 'azure';
-    } & AzureOpenAiEmbeddingsConfiguration) | ({
-        provider: 'dograh';
-    } & DograhEmbeddingsConfiguration) | null;
+    } & AzureOpenAiEmbeddingsConfiguration) | null;
 };
 
 /**
@@ -664,8 +656,6 @@ export type ByokRealtimeAiModelConfiguration = {
     } & GoogleLlmService) | ({
         provider: 'azure';
     } & AzureLlmService) | ({
-        provider: 'dograh';
-    } & DograhLlmService) | ({
         provider: 'aws_bedrock';
     } & AwsBedrockLlmConfiguration) | ({
         provider: 'speaches';
@@ -685,9 +675,7 @@ export type ByokRealtimeAiModelConfiguration = {
         provider: 'openrouter';
     } & OpenRouterEmbeddingsConfiguration) | ({
         provider: 'azure';
-    } & AzureOpenAiEmbeddingsConfiguration) | ({
-        provider: 'dograh';
-    } & DograhEmbeddingsConfiguration) | null;
+    } & AzureOpenAiEmbeddingsConfiguration) | null;
 };
 
 /**
@@ -2205,126 +2193,6 @@ export type DocumentUploadResponseSchema = {
 };
 
 /**
- * Dograh
- */
-export type DograhEmbeddingsConfiguration = {
-    /**
-     * Provider
-     */
-    provider?: 'dograh';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Dograh-managed embedding model.
-     */
-    model?: string;
-};
-
-/**
- * Dograh
- */
-export type DograhLlmService = {
-    /**
-     * Provider
-     */
-    provider?: 'dograh';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Dograh-hosted model tier.
-     */
-    model?: string;
-};
-
-/**
- * DograhManagedAIModelConfiguration
- */
-export type DograhManagedAiModelConfiguration = {
-    /**
-     * Api Key
-     */
-    api_key: string;
-    /**
-     * Voice
-     */
-    voice?: string;
-    /**
-     * Speed
-     */
-    speed?: number;
-    /**
-     * Language
-     */
-    language?: string;
-};
-
-/**
- * Dograh
- */
-export type DograhSttService = {
-    /**
-     * Provider
-     */
-    provider?: 'dograh';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Dograh STT tier.
-     */
-    model?: string;
-    /**
-     * Language
-     *
-     * Language code; use 'multi' for auto-detect.
-     */
-    language?: string;
-};
-
-/**
- * Dograh
- */
-export type DograhTtsService = {
-    /**
-     * Provider
-     */
-    provider?: 'dograh';
-    /**
-     * Api Key
-     */
-    api_key: string | Array<string>;
-    /**
-     * Model
-     *
-     * Dograh TTS tier.
-     */
-    model?: string;
-    /**
-     * Voice
-     *
-     * Voice preset.
-     */
-    voice?: string;
-    /**
-     * Speed
-     *
-     * Speed of the voice.
-     */
-    speed?: number;
-};
-
-/**
  * DuplicateTemplateRequest
  */
 export type DuplicateTemplateRequest = {
@@ -2820,7 +2688,7 @@ export type GoogleTtsConfiguration = {
     /**
      * Model
      *
-     * Google Cloud low-latency TTS engine. Dograh maps this to Pipecat's streaming Google TTS service for Chirp 3 HD and Journey voices.
+     * Google Cloud low-latency TTS engine. Vaani maps this to Pipecat's streaming Google TTS service for Chirp 3 HD and Journey voices.
      */
     model?: string;
     /**
@@ -4356,8 +4224,7 @@ export type OrganizationAiModelConfigurationV2 = {
     /**
      * Mode
      */
-    mode: 'dograh' | 'byok';
-    dograh?: DograhManagedAiModelConfiguration | null;
+    mode: 'byok';
     byok?: ByokaiModelConfiguration | null;
 };
 

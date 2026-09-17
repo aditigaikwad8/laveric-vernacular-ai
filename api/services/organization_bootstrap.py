@@ -16,23 +16,15 @@ from datetime import timedelta
 
 from loguru import logger
 
-from api.constants import AUTH_PROVIDER, DEPLOYMENT_MODE
+from api.constants import DEPLOYMENT_MODE
 from api.db import db_client
 from api.db.organization_configuration_client import LEASE_COMPLETED
 from api.enums import OrganizationConfigurationKey
-from api.errors.mps import MPSUnavailableError
-from api.schemas.ai_model_configuration import (
-    DograhManagedAIModelConfiguration,
-    OrganizationAIModelConfigurationV2,
-)
+from api.schemas.ai_model_configuration import OrganizationAIModelConfigurationV2
 from api.services.configuration.ai_model_configuration import (
     get_organization_ai_model_configuration_v2,
-    upsert_organization_ai_model_configuration_v2,
 )
-from api.services.mps_billing import ensure_hosted_mps_billing_account_v2
-from api.services.mps_service_key_client import mps_service_key_client
 
-MANAGED_SERVICE_KEY_NAME = "Default Dograh Model Service Key"
 
 # A holder that dies mid-provisioning leaves its lease pending. This bounds how
 # long the organization waits before another request is allowed to take over.
@@ -140,40 +132,7 @@ async def _bootstrap_organization(
     Returns True when the organization ends up fully provisioned, i.e. when the
     lease may be marked terminal.
     """
-    if configuration is None:
-        # Billing is best effort: it is recoverable out of band, and failing the
-        # whole bootstrap over it would also cost the org its model config.
-        try:
-            await ensure_hosted_mps_billing_account_v2(
-                organization_id,
-                created_by=created_by,
-            )
-        except Exception:
-            logger.warning(
-                "Failed to initialize hosted MPS billing account for organization {}",
-                organization_id,
-                exc_info=True,
-            )
-
-        try:
-            configuration = await provision_dograh_managed_model_configuration(
-                organization_id,
-                created_by=created_by,
-            )
-        except MPSUnavailableError:
-            logger.info(
-                "MPS not configured — skipping Dograh-managed model configuration provisioning for organization {}",
-                organization_id,
-            )
-            configuration = None
-        # Persist before provisioning SIP: the service key is already issued and
-        # minting is not idempotent, so the shorter the window in which a crash
-        # can lose it, the fewer orphaned keys a retry leaves behind.
-        if configuration is not None:
-            await upsert_organization_ai_model_configuration_v2(
-                organization_id, configuration
-            )
-
+   
     if sip_provisioned:
         return True
 
@@ -182,37 +141,6 @@ async def _bootstrap_organization(
         created_by=created_by,
     )
 
-
-async def provision_dograh_managed_model_configuration(
-    organization_id: int,
-    *,
-    created_by: str,
-) -> OrganizationAIModelConfigurationV2:
-    """Mint an organization's MPS service key and build its model configuration.
-
-    Returns the configuration without persisting it; the caller owns that. Has
-    no side effects beyond the key mint — SIP connectivity is provisioned
-    separately by ``provision_managed_sip_connectivity``.
-    """
-    data = await mps_service_key_client.create_service_key(
-        name=MANAGED_SERVICE_KEY_NAME,
-        description=(
-            "Auto-generated key for OSS user"
-            if AUTH_PROVIDER == "local"
-            else f"Auto-generated key for organization {organization_id}"
-        ),
-        organization_id=(None if AUTH_PROVIDER == "local" else organization_id),
-        created_by=created_by,
-        expires_in_days=90,
-    )
-    service_key = data.get("service_key")
-    if not service_key:
-        raise MPSUnavailableError("create_service_key")
-
-    return OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(api_key=service_key),
-    )
 
 
 async def provision_managed_sip_connectivity(

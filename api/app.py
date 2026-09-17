@@ -1,4 +1,4 @@
-"""Set up logging before importing anything else"""
+﻿"""Set up logging before importing anything else"""
 
 import sentry_sdk
 
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
 
         from api.services.observability import loop_exceptions, loop_lag
 
-        # Event-loop lag gauge — per-pod saturation signal read off
+        # Event-loop lag gauge â€” per-pod saturation signal read off
         # /health/active-calls during autoscaling load tests.
         loop_lag.start()
         # Routes exceptions that escape tasks and timer callbacks; demotes one
@@ -94,7 +94,6 @@ app = FastAPI(
     openapi_url=f"{API_PREFIX}/openapi.json",
     lifespan=lifespan,
     servers=[
-        {"url": "https://app.dograh.com", "description": "Production"},
         {"url": "http://localhost:8000", "description": "Local development"},
     ],
 )
@@ -116,7 +115,7 @@ async def handle_mps_unavailable_error(
 # Configure CORS.
 # OSS is typically deployed with UI and API behind a single reverse proxy
 # (same-origin, so CORS does not apply). Keep it permissive without
-# credentials — wildcard + credentials is rejected by browsers and unsafe.
+# credentials â€” wildcard + credentials is rejected by browsers and unsafe.
 # SaaS deployments must set CORS_ALLOWED_ORIGINS to an explicit allowlist.
 if DEPLOYMENT_MODE == "oss":
     cors_origins: list[str] = ["*"]
@@ -159,8 +158,9 @@ api_router.include_router(main_router)
 # main router with api prefix
 app.include_router(api_router, prefix=API_PREFIX)
 
-# Mount the MCP server — agents reach it at /api/v1/mcp over Streamable HTTP,
+# Mount the MCP server â€” agents reach it at /api/v1/mcp over Streamable HTTP,
 # authenticating with the same X-API-Key header used by the REST API.
 # Mounted under /api/v1 so existing reverse-proxy rules (nginx etc.) route it
 # without any extra configuration.
 app.mount(f"{API_PREFIX}/mcp", mcp_app)
+

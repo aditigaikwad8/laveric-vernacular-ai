@@ -1,11 +1,10 @@
-import "./globals.css";
+﻿import "./globals.css";
 
 import { GoogleTagManager } from "@next/third-parties/google";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 
-import ChatwootWidget from "@/components/ChatwootWidget";
 import AppLayout from "@/components/layout/AppLayout";
 import MetaPixel from "@/components/MetaPixel";
 import PostHogIdentify from "@/components/PostHogIdentify";
@@ -87,7 +86,6 @@ export default function RootLayout({
                           {children}
                         </AppLayout>
                         <Toaster />
-                        <ChatwootWidget />
                       </OnboardingProvider>
                     </TelephonyConfigWarningsProvider>
                   </OrgConfigProvider>
@@ -100,3 +98,4 @@ export default function RootLayout({
     </html>
   );
 }
+

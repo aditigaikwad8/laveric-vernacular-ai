@@ -8,19 +8,14 @@ from typing import Literal
 from loguru import logger
 from pydantic import ValidationError
 
-from api.constants import MPS_API_URL
+
 from api.db import db_client
 from api.db.models import OrganizationConfigurationModel
 from api.enums import OrganizationConfigurationKey
 from api.schemas.ai_model_configuration import (
-    DOGRAH_DEFAULT_LANGUAGE,
-    DOGRAH_DEFAULT_VOICE,
-    DOGRAH_SPEED_MAX,
-    DOGRAH_SPEED_MIN,
     BYOKAIModelConfiguration,
     BYOKPipelineAIModelConfiguration,
     BYOKRealtimeAIModelConfiguration,
-    DograhManagedAIModelConfiguration,
     EffectiveAIModelConfiguration,
     OrganizationAIModelConfigurationV2,
     compile_ai_model_configuration_v2,
@@ -31,7 +26,7 @@ from api.services.configuration.masking import (
     mask_key,
     resolve_masked_api_keys,
 )
-from api.services.configuration.registry import ServiceProviders
+
 from api.services.configuration.resolve import resolve_effective_config
 
 AIModelConfigurationSource = Literal["organization_v2", "legacy_user_v1", "empty"]
@@ -247,16 +242,7 @@ def merge_ai_model_configuration_v2_secrets(
     incoming_dict = incoming.model_dump(mode="json", exclude_none=True)
     existing_dict = existing.model_dump(mode="json", exclude_none=True)
 
-    if incoming_dict.get("mode") == "dograh" and existing_dict.get("mode") == "dograh":
-        incoming_dograh = incoming_dict.get("dograh") or {}
-        existing_dograh = existing_dict.get("dograh") or {}
-        incoming_key = incoming_dograh.get("api_key")
-        existing_key = existing_dograh.get("api_key")
-        if incoming_key and existing_key and contains_masked_key(incoming_key):
-            incoming_dograh["api_key"] = resolve_masked_api_keys(
-                incoming_key,
-                existing_key,
-            )
+    
 
     if incoming_dict.get("mode") == "byok" and existing_dict.get("mode") == "byok":
         _merge_byok_secret_fields(incoming_dict.get("byok"), existing_dict.get("byok"))
@@ -284,10 +270,6 @@ def mask_ai_model_configuration_v2(
 def convert_legacy_ai_model_configuration_to_v2(
     configuration: EffectiveAIModelConfiguration,
 ) -> OrganizationAIModelConfigurationV2:
-    dograh_key = _first_dograh_api_key(configuration)
-    if dograh_key:
-        return _convert_any_dograh_legacy_configuration(configuration, dograh_key)
-
     if configuration.is_realtime:
         if configuration.realtime is None or configuration.llm is None:
             raise ValueError("Realtime legacy configuration is incomplete")
@@ -323,19 +305,7 @@ def convert_legacy_ai_model_configuration_to_v2(
     )
 
 
-def dograh_embeddings_base_url() -> str:
-    # AsyncOpenAI appends "/embeddings"; MPS exposes that under /api/v1/llm.
-    return f"{MPS_API_URL}/api/v1/llm"
 
-
-def apply_managed_embeddings_base_url(
-    *,
-    provider: str | None,
-    base_url: str | None,
-) -> str | None:
-    if provider == ServiceProviders.DOGRAH.value or provider == ServiceProviders.DOGRAH:
-        return dograh_embeddings_base_url()
-    return base_url
 
 
 def _merge_byok_secret_fields(incoming_byok: dict | None, existing_byok: dict | None):
@@ -416,45 +386,7 @@ def _mask_secret_value(value):
     return mask_key(value)
 
 
-def _convert_any_dograh_legacy_configuration(
-    configuration: EffectiveAIModelConfiguration,
-    dograh_key: str,
-) -> OrganizationAIModelConfigurationV2:
-    speed = getattr(configuration.tts, "speed", 1.0)
-    try:
-        speed = float(speed)
-    except (TypeError, ValueError):
-        speed = 1.0
-    if not DOGRAH_SPEED_MIN <= speed <= DOGRAH_SPEED_MAX:
-        speed = 1.0
-    return OrganizationAIModelConfigurationV2(
-        mode="dograh",
-        dograh=DograhManagedAIModelConfiguration(
-            api_key=dograh_key,
-            voice=getattr(configuration.tts, "voice", DOGRAH_DEFAULT_VOICE)
-            or DOGRAH_DEFAULT_VOICE,
-            speed=speed,
-            language=getattr(configuration.stt, "language", DOGRAH_DEFAULT_LANGUAGE)
-            or DOGRAH_DEFAULT_LANGUAGE,
-        ),
-    )
 
-
-def _first_dograh_api_key(configuration: EffectiveAIModelConfiguration) -> str | None:
-    for service in (
-        configuration.llm,
-        configuration.tts,
-        configuration.stt,
-        configuration.embeddings,
-        configuration.realtime,
-    ):
-        if service is None or _provider(service) != ServiceProviders.DOGRAH:
-            continue
-        try:
-            return _single_api_key(service)
-        except ValueError:
-            continue
-    return None
 
 
 def _provider(service):
